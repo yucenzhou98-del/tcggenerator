@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 雷射卡牌網頁產生器</title>
+    <!-- 引入 html2canvas 用於一鍵匯出圖片 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+        body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        h1 { margin-bottom: 20px; font-size: 1.8rem; text-align: center; color: #38bdf8; }
+        
+        .container { display: flex; gap: 30px; width: 100%; max-width: 1000px; justify-content: center; flex-wrap: wrap; }
+        
+        /* 控制面板 */
+        .control-panel { background: #1e293b; padding: 20px; border-radius: 12px; width: 350px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        .control-group label { font-size: 0.9rem; color: #cbd5e1; }
+        .control-group input, .control-group select { padding: 8px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; }
+        
+        /* 預覽與展示區 */
+        .preview-area { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        
+        /* 3D 卡牌本體 */
+        .card-scene { width: 300px; height: 420px; perspective: 1000px; cursor: pointer; }
+        .card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.1s ease; border-radius: 16px; box-shadow: 0 20px 30px rgba(0,0,0,0.5); }
+        
+        .card-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; border: 3px solid rgba(255,255,255,0.2); background: #334155; overflow: hidden; }
+        
+        /* 雷射炫光層 */
+        .card-face::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%); mix-blend-mode: overlay; opacity: var(--glow-opacity, 0.5); pointer-events: none; transition: background 0.2s; }
+        
+        .card-header { display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 8px; }
+        .card-img-box { width: 100%; height: 180px; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
+        .card-img-box img { width: 100%; height: 100%; object-fit: cover; }
+        .card-body { font-size: 0.85rem; line-height: 1.4; display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
+        .card-footer { font-size: 0.75rem; text-align: right; opacity: 0.8; }
+        
+        /* 匯出按鈕 */
+        .export-btn { background: #0ea5e9; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: background 0.2s; width: 100%; }
+        .export-btn:hover { background: #0284c7; }
+    </style>
+</head>
+<body>
+
+    <h1>3D 雷射卡牌網頁產生器</h1>
+
+    <div class="container">
+        <!-- 左側控制面板 -->
+        <div class="control-panel">
+            <h3>卡牌屬性設定</h3>
+            <div class="control-group">
+                <label>角色名稱</label>
+                <input type="text" id="input-name" value="傳奇法師 妮兒" oninput="updateCard()">
+            </div>
+            <div class="control-group">
+                <label>生命值 (HP)</label>
+                <input type="text" id="input-hp" value="HP 9999" oninput="updateCard()">
+            </div>
+            <div class="control-group">
+                <label>卡牌圖片上傳</label>
+                <input type="file" id="input-file" accept="image/*" onchange="updateImage(event)">
+            </div>
+            <div class="control-group">
+                <label>技能說明</label>
+                <input type="text" id="input-skill" value="奧義：貓咪療癒光波" oninput="updateCard()">
+            </div>
+            <div class="control-group">
+                <label>創作者署名</label>
+                <input type="text" id="input-author" value="By Student" oninput="updateCard()">
+            </div>
+        </div>
+
+        <!-- 右側預覽與一鍵匯出 -->
+        <div class="preview-area">
+            <div class="card-scene" id="card-scene">
+                <div class="card" id="card">
+                    <div class="card-face" id="card-face-style" style="background: linear-gradient(135deg, #1e1b4b, #312e81);">
+                        <div class="card-header">
+                            <span id="card-name">傳奇法師 妮兒</span>
+                            <span id="card-hp">HP 9999</span>
+                        </div>
+                        <div class="card-img-box">
+                            <img id="card-img" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><rect width='100%' height='100%' fill='%23334155'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-size='16'>請上傳圖片</text></svg>" alt="卡牌圖片">
+                        </div>
+                        <div class="card-body">
+                            <p><b>[被動] 柔軟肉球：</b> 免疫所有可愛攻擊。</p>
+                            <p id="card-skill"><b>[奧義] 貓咪療癒光波：</b> 全體恢復 100% 精神力。</p>
+                        </div>
+                        <div class="card-footer" id="card-author">By Student</div>
+                    </div>
+                </div>
+            </div>
+            <button class="export-btn" onclick="exportCard()">一鍵高畫質匯出 PNG</button>
+        </div>
+    </div>
+
+    <script>
+        function updateCard() {
+            document.getElementById('card-name').innerText = document.getElementById('input-name').value;
+            document.getElementById('card-hp').innerText = document.getElementById('input-hp').value;
+            document.getElementById('card-skill').innerHTML = `<b>[奧義]</b> ${document.getElementById('input-skill').value}`;
+            document.getElementById('card-author').innerText = document.getElementById('input-author').value;
+        }
+
+        function updateImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('card-img').src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        const scene = document.getElementById('card-scene');
+        const card = document.getElementById('card');
+
+        scene.addEventListener('mousemove', (e) => {
+            const rect = scene.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const rotateX = -(y - centerY) / 10;
+            const rotateY = (x - centerX) / 10;
+
+            card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+            
+            const percentX = (x / rect.width) * 100;
+            const percentY = (y / rect.height) * 100;
+            card.style.setProperty('--glow-opacity', '0.7');
+            document.getElementById('card-face-style').style.background = `radial-gradient(circle at ${percentX}% ${percentY}%, #4f46e5, #1e1b4b 80%)`;
+        });
+
+        scene.addEventListener('mouseleave', () => {
+            card.style.transform = `rotateX(0deg) rotateY(0deg)`;
+            card.style.transition = `transform 0.5s ease`;
+            document.getElementById('card-face-style').style.background = `linear-gradient(135deg, #1e1b4b, #312e81)`;
+        });
+
+        scene.addEventListener('mouseenter', () => {
+            card.style.transition = `none`;
+        });
+
+        function exportCard() {
+            html2canvas(document.getElementById('card'), { scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'my-3d-card.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+    </script>
+</body>
+</html>
